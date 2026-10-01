@@ -2,6 +2,7 @@
 import { q, q1, run, now, today, addDays, hashPassword } from "./db";
 import crypto from "node:crypto";
 import type { SessionUser } from "./auth";
+import { JAUNDICE_ACTIONS } from "./jaundice";
 
 type Payload = Record<string, unknown>;
 type Row = Record<string, unknown>;
@@ -753,6 +754,11 @@ function getAffectedTasks(stayId: number, from: string, to: string): Row[] {
 }
 
 export function runAction(user: SessionUser, action: string, payload: Payload): unknown {
+  const jdef = JAUNDICE_ACTIONS[action];
+  if (jdef) {
+    if (!jdef.roles.includes(user.role)) throw new Error("当前角色无权执行该操作");
+    return jdef.run(user, payload || {});
+  }
   const def = ACTIONS[action];
   if (!def) throw new Error(`未知操作：${action}`);
   if (!def.roles.includes(user.role)) throw new Error("当前角色无权执行该操作");
@@ -760,5 +766,5 @@ export function runAction(user: SessionUser, action: string, payload: Payload): 
 }
 
 export function listActions(): string[] {
-  return Object.keys(ACTIONS);
+  return [...Object.keys(ACTIONS), ...Object.keys(JAUNDICE_ACTIONS)];
 }

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { q, today } from "@/lib/db";
+import { listJaundiceCases } from "@/lib/jaundice";
 import { requireUser } from "@/lib/guard";
 import { AppShell, Section, DataTable, Badge } from "@/components/ui";
 import { DataForm } from "@/components/client";
+import { ReportForm, OpenJaundiceList } from "@/components/jaundice";
 import { PLAN_TYPES, TASK_STATUS, dt, badgeClass } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +27,7 @@ export default async function NursePage() {
   const inStays = q(
     `SELECT s.id, s.mother_name, s.baby_name, s.jaundice_level, r.number FROM stays s
      JOIN rooms r ON r.id=s.room_id WHERE s.status='in_stay' ORDER BY r.number`);
+  const openJaundice = listJaundiceCases({ openOnly: true });
 
   return (
     <AppShell title={user.role === "matron" ? "月嫂工作台" : "护理工作台"}>
@@ -104,13 +107,24 @@ export default async function NursePage() {
         </Section>
       </div>
 
-      <Section title="在住房间黄疸监测">
-        <DataTable cols={["房间", "产妇", "宝宝", "最新黄疸值", "进入房间"]}
-          rows={inStays.map((s) => [
-            String(s.number), String(s.mother_name), String(s.baby_name),
-            <span key="j" className={Number(s.jaundice_level) >= 12 ? "badge red" : "badge green"}>{String(s.jaundice_level)} mg/dL</span>,
-            <Link key="l" href={`/stays/${s.id}`}>房间360视图</Link>,
-          ])} />
+      <Section title="宝宝黄疸分级处置与转诊闭环（护理师入口）" tone={openJaundice.some((j) => ["urgent"].includes(String(j.level))) ? "tone-red" : ""}>
+        <div className="muted small mb8">
+          测得黄疸升高请在此上报：平台记录测量时间/方式/趋势/喂养/排泄并自动快照既往观察计划，按阈值分为
+          <span className="badge blue">加强复测</span>
+          <span className="badge amber">医生当班评估</span>
+          <span className="badge red">紧急转诊</span>。
+          医生确认前不得自行向家属承诺转诊或调整治疗，家属端仅展示医生确认的建议。
+        </div>
+        <div className="grid cols-2">
+          <div>
+            <div className="jc-sub">进行中的黄疸处置事件</div>
+            <OpenJaundiceList limit={10} />
+          </div>
+          <div>
+            <div className="jc-sub">黄疸测量上报（自动分级）</div>
+            <ReportForm stayOptions={inStays.map((s) => ({ value: String(s.id), label: `${s.number} ${s.mother_name}（宝宝${s.baby_name}）` }))} />
+          </div>
+        </div>
       </Section>
     </AppShell>
   );

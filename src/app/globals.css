@@ -148,3 +148,25 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #d9c3a5; border-c
 .small { font-size: 12px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .mt8 { margin-top: 8px; } .mt16 { margin-top: 16px; }
+
+/* ===== 宝宝黄疸分级处置与转诊闭环 ===== */
+.jc-panel { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fffdfa; }
+.jc-panel + .jc-panel { margin-top: 12px; }
+.jc-head { margin-bottom: 8px; gap: 8px; }
+.jc-risk {
+  margin: 8px 0; padding: 8px 10px; border-radius: 8px;
+  background: #fdf0ef; border: 1px solid #f0c6c2; color: #8c2f2a; font-size: 13px;
+}
+.jc-sub { font-weight: 600; font-size: 13px; margin: 12px 0 6px; }
+.jc-cols { align-items: start; }
+.jc-hi { color: var(--red); }
+.jc-handover { white-space: pre-wrap; background: #f7f3ec; padding: 8px; border-radius: 8px; margin-top: 4px; font-size: 13px; }
+.jc-actions { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+.jc-actions details { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
+.jc-actions summary { cursor: pointer; font-size: 13px; }
+.jc-case summary { cursor: pointer; }
+.jc-case { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; background: #fff; }
+.jc-case[open] { background: #fffdfa; }
+.jc-family-decide { margin: 10px 0; padding: 10px; border-radius: 8px; background: #fdf7ea; border: 1px solid #ecd9ae; }
+.jc-advice { margin: 8px 0; padding: 8px 10px; border-radius:8px; background: #f2f7f3; border: 1px solid #cfe3d4; }
+.mb8 { margin-bottom: 8px; }

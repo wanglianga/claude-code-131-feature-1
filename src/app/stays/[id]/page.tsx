@@ -4,6 +4,7 @@ import { q, q1, today } from "@/lib/db";
 import { requireUser, can, STAFF_ROLES } from "@/lib/guard";
 import { AppShell, Section, DataTable, KV, Badge } from "@/components/ui";
 import { DataForm, ActionButton } from "@/components/client";
+import { StayJaundiceSection } from "@/components/jaundice";
 import {
   PLAN_TYPES, EX_TYPES, EX_STATUS, SEVERITY, FEE_TYPES, TASK_STATUS, VISIT_STATUS,
   money, dt, badgeClass, severityClass,
@@ -119,6 +120,11 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
             submitLabel="上报异常" />
         </details>
       </Section>
+
+      {/* 黄疸分级处置与转诊闭环（全程时间线/交接材料/未完成事项） */}
+      <div id="jaundice">
+        <StayJaundiceSection stayId={stayId} user={user} roomNumber={String(stay.room_number)} />
+      </div>
 
       <div className="grid cols-2">
         {/* 护理计划与任务 */}

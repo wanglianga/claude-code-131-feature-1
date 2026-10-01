@@ -33,7 +33,81 @@ export const PLAN_TYPES: Record<string, string> = {
   meal: "月子餐",
   baby_bath: "宝宝洗澡抚触",
   night_care: "夜间照护",
+  jaundice_obs: "黄疸观察复测",
 };
+
+// ===== 宝宝黄疸分级处置与转诊闭环 =====
+export const JAUNDICE_LEVELS: Record<string, string> = {
+  enhanced: "加强复测",
+  doctor: "医生当班评估",
+  urgent: "紧急转诊",
+};
+
+export const JAUNDICE_STATUSES: Record<string, string> = {
+  reported: "已上报待分级",
+  doctor_confirming: "待医生当班评估确认",
+  monitoring: "加强复测监测中",
+  referral_pending_family: "待家属确认转诊",
+  family_confirmed: "家属已确认·待协调",
+  family_declined: "家属暂拒转诊·观察留观",
+  coordinating: "转诊协调中",
+  upgraded: "转诊延迟·已升级护士长",
+  referred: "转诊外院中",
+  returned: "已返中心·待处理回执",
+  conflict_review: "外院建议冲突·待医生复核",
+  resolved: "闭环已完成",
+  closed: "已关闭",
+};
+
+export const JAUNDICE_METHODS: Record<string, string> = {
+  TCB: "经皮胆红素(TCB)",
+  TSB: "血清胆红素(TSB)",
+};
+
+export const JAUNDICE_TODO_KINDS: Record<string, string> = {
+  remeasure: "黄疸复测",
+  coordinate: "转诊协调",
+  review: "医生复核",
+  follow_hospital: "外院跟进",
+};
+
+export const JAUNDICE_EVENTS: Record<string, string> = {
+  reported: "测量上报",
+  triaged: "阈值分级",
+  remeasured: "加强复测",
+  escalated: "升级护士长",
+  doctor_confirmed: "医生确认建议",
+  family_confirmed: "家属确认转诊",
+  family_declined: "家属拒绝转诊",
+  coordinated: "转诊协调",
+  vehicle_declined: "车辆拒绝",
+  escort_declined: "陪同人员无法到位",
+  departed: "出发转诊",
+  arrived: "到达外院交接",
+  returned: "宝宝返回中心",
+  conflict_flagged: "建议冲突待复核",
+  reviewed: "医生复核",
+  plan_rebuilt: "重建观察计划",
+  routine_resumed: "恢复常规护理",
+  closed: "闭环关闭",
+  note: "备注",
+};
+
+export function jaundiceLevelClass(level: string): string {
+  if (level === "urgent") return "badge red";
+  if (level === "doctor") return "badge amber";
+  return "badge blue";
+}
+
+export function jaundiceStatusClass(status: string): string {
+  switch (status) {
+    case "resolved": case "closed": return "badge green";
+    case "referred": return "badge blue";
+    case "upgraded": case "referral_pending_family": case "family_declined":
+    case "conflict_review": case "reported": return "badge red";
+    default: return "badge amber";
+  }
+}
 
 export const EX_TYPES: Record<string, string> = {
   jaundice: "宝宝黄疸升高",

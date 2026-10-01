@@ -3,7 +3,9 @@ import { q, today } from "@/lib/db";
 import { requireUser } from "@/lib/guard";
 import { AppShell, Section, DataTable, Badge } from "@/components/ui";
 import { DataForm } from "@/components/client";
-import { EX_STATUS, dt, badgeClass } from "@/lib/labels";
+import { JaundiceCasePanel } from "@/components/jaundice";
+import { listJaundiceCases } from "@/lib/jaundice";
+import { EX_STATUS, JAUNDICE_LEVELS, JAUNDICE_STATUSES, dt, badgeClass, jaundiceLevelClass, jaundiceStatusClass } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
@@ -22,15 +24,74 @@ export default async function DoctorPage() {
      JOIN stays s ON s.id=dr.stay_id JOIN rooms r ON r.id=s.room_id
      ORDER BY dr.round_date DESC LIMIT 15`);
 
+  // 黄疸闭环：待当班评估确认 / 待返中心复核（含外院建议冲突）
+  const jcases = listJaundiceCases({ openOnly: true });
+  const awaitingConfirm = jcases.filter((c) => ["reported", "doctor_confirming"].includes(String(c.status)));
+  const awaitingReview = jcases.filter((c) => ["returned", "conflict_review"].includes(String(c.status)));
+  const otherFlow = jcases.filter((c) =>
+    !["reported", "doctor_confirming", "returned", "conflict_review"].includes(String(c.status)));
+
   return (
     <AppShell title="儿科医生工作台">
-      <div className="grid cols-3">
+      <div className="grid cols-4">
         <div className="stat"><div className="num">{inStays.length}</div><div className="label">在住宝宝</div></div>
-        <div className="stat"><div className="num">{jaundiceAlerts.length}</div><div className="label">黄疸预警工单</div></div>
+        <div className="stat"><div className="num">{awaitingConfirm.length}</div><div className="label">黄疸待当班确认</div></div>
+        <div className="stat"><div className="num">{awaitingReview.length}</div><div className="label">返中心待复核</div></div>
         <div className="stat"><div className="num">{myRounds.filter((r) => r.round_date === todayStr).length}</div><div className="label">今日巡诊</div></div>
       </div>
 
-      <Section title="黄疸预警（护理上报）" tone={jaundiceAlerts.length ? "tone-red" : ""}>
+      <Section title="黄疸分级处置 · 待医生当班评估确认" tone={awaitingConfirm.length ? "tone-red" : ""}
+        extra={<Badge text={`${awaitingConfirm.length} 件`} cls="badge red" />}>
+        {awaitingConfirm.length === 0 && <div className="empty">暂无待确认的黄疸上报；医生确认前家属端不展示处理建议</div>}
+        {awaitingConfirm.map((c) => (
+          <details key={String(c.id)} open className="jc-case">
+            <summary>
+              <span className="row" style={{ gap: 8 }}>
+                <b>{String(c.code)}</b>
+                <Link href={`/stays/${c.stay_id}`}>{String(c.room_number)}房 宝宝{String(c.baby_name)}</Link>
+                <Badge text={JAUNDICE_LEVELS[String(c.level)] || ""} cls={jaundiceLevelClass(String(c.level))} />
+                <Badge text={JAUNDICE_STATUSES[String(c.status)] || ""} cls={jaundiceStatusClass(String(c.status))} />
+                <span className="muted small">最新 {String(c.last_method)} {String(c.last_value)}mg/dL</span>
+              </span>
+            </summary>
+            <div className="mt8"><JaundiceCasePanel caseId={Number(c.id)} user={user} /></div>
+          </details>
+        ))}
+      </Section>
+
+      <Section title="黄疸返中心 · 外院回执/冲突复核（必须医生复核后才能恢复常规护理）" tone={awaitingReview.length ? "tone-red" : ""}>
+        {awaitingReview.length === 0 && <div className="empty">暂无待复核的返中心事件</div>}
+        {awaitingReview.map((c) => (
+          <details key={String(c.id)} open className="jc-case">
+            <summary>
+              <span className="row" style={{ gap: 8 }}>
+                <b>{String(c.code)}</b>
+                <Link href={`/stays/${c.stay_id}`}>{String(c.room_number)}房 宝宝{String(c.baby_name)}</Link>
+                <Badge text={JAUNDICE_STATUSES[String(c.status)] || ""} cls={jaundiceStatusClass(String(c.status))} />
+                <span className="muted small">返中心 {dt(c.returned_at)}</span>
+              </span>
+            </summary>
+            <div className="mt8"><JaundiceCasePanel caseId={Number(c.id)} user={user} /></div>
+          </details>
+        ))}
+      </Section>
+
+      {otherFlow.length > 0 && (
+        <Section title="转诊流程中的黄疸事件">
+          <DataTable cols={["闭环", "房间", "宝宝", "分级", "状态", "最新值", ""]}
+            rows={otherFlow.map((c) => [
+              String(c.code),
+              <Link key="r" href={`/stays/${c.stay_id}`}>{String(c.room_number)}</Link>,
+              String(c.baby_name),
+              <Badge key="l" text={JAUNDICE_LEVELS[String(c.level)] || ""} cls={jaundiceLevelClass(String(c.level))} />,
+              <Badge key="s" text={JAUNDICE_STATUSES[String(c.status)] || ""} cls={jaundiceStatusClass(String(c.status))} />,
+              <span key="v">{String(c.last_value ?? "-")} mg/dL</span>,
+              <Link key="go" href={`/stays/${c.stay_id}#jaundice`}>进入</Link>,
+            ])} />
+        </Section>
+      )}
+
+      <Section title="历史黄疸预警工单（异常中心联动）">
         <DataTable cols={["房间", "宝宝", "预警内容", "状态", "处理"]} empty="暂无黄疸预警"
           rows={jaundiceAlerts.map((e) => [
             <Link key="r" href={`/stays/${e.stay_id}`}>{String(e.number)}</Link>,

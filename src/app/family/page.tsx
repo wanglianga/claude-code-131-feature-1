@@ -3,6 +3,7 @@ import { q, q1 } from "@/lib/db";
 import { requireUser } from "@/lib/guard";
 import { AppShell, Section, DataTable, KV, Badge } from "@/components/ui";
 import { DataForm } from "@/components/client";
+import { FamilyJaundiceSection } from "@/components/jaundice";
 import { PLAN_TYPES, VISIT_STATUS, FEE_TYPES, money, dt, badgeClass } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
@@ -52,11 +53,13 @@ export default async function FamilyPage() {
           ["房间 / 套餐", `${stay.room_number}（${stay.room_type}）/ ${stay.package_name}`],
           ["入住 / 预计出所", `${stay.check_in_date} ~ ${stay.expected_checkout}${stay.actual_checkout ? `（实际 ${stay.actual_checkout}）` : ""}`],
           ["宝宝", `${stay.baby_name} · ${stay.baby_weight}kg`],
-          ["黄疸观察", `${stay.jaundice_level}mg/dL ${stay.jaundice_note || ""}`],
+          ["黄疸观察", <span key="j" className="muted small">以医生确认的处理建议为准（见下方「宝宝黄疸观察与转诊」专区）</span>],
           ["哺乳方式", String(stay.feeding_method)],
           ["我的身份", `${link.link_name}（${link.relation}）`],
         ]} />
       </Section>
+
+      {showCare && <FamilyJaundiceSection stayId={stayId} />}
 
       {showCare && (
         <div className="grid cols-2">
