@@ -1,5 +1,6 @@
 // 业务动作层：所有角色共用的业务逻辑。每个动作做角色校验、写库、写审计日志。
 import { q, q1, run, now, today, addDays, hashPassword } from "./db";
+import * as J from "./jaundice";
 import crypto from "node:crypto";
 import type { SessionUser } from "./auth";
 
@@ -744,6 +745,61 @@ const ACTIONS: Record<string, { roles: string[]; run: Handler }> = {
       audit(stayId, user, "结算确认", `实收${paid}，余额${balance}`);
       return { message: `结算已确认，余额 ${balance} 元` };
     },
+  },
+
+  // ============================================================
+  // 宝宝黄疸升高：分级处置 + 转诊闭环
+  // ============================================================
+
+  // 护理师/护士长测量黄疸：记录测量时间/方式/趋势/喂养/排泄/既往计划与医嘱，系统自动分级
+  "jaundice.measure": {
+    roles: ["nurse", "matron", "head_nurse", "admin"],
+    run: (user, p) => J.measure(user, p),
+  },
+  // 儿科医生确认处理建议（加强复测/当班评估/转诊）；家属端仅在此后可见建议
+  "jaundice.doctorConfirm": {
+    roles: ["pediatrician", "admin"],
+    run: (user, p) => J.doctorConfirm(user, p),
+  },
+  // 家属确认/拒绝转诊（仅医生建议转诊后开放）
+  "jaundice.familyRespond": {
+    roles: ["family"],
+    run: (user, p) => J.familyRespond(user, p),
+  },
+  // 护士长协调车辆/陪同/目标医院/中心护理交接
+  "jaundice.coordinate": {
+    roles: ["head_nurse", "admin"],
+    run: (user, p) => J.coordinate(user, p),
+  },
+  // 车辆或家属拒绝等导致转诊延迟：自动升级护士长并保留风险说明
+  "jaundice.reportDelay": {
+    roles: ["head_nurse", "nurse", "admin"],
+    run: (user, p) => J.reportDelay(user, p),
+  },
+  // 转诊出发
+  "jaundice.depart": {
+    roles: ["head_nurse", "nurse", "admin"],
+    run: (user, p) => J.depart(user, p),
+  },
+  // 到达外院
+  "jaundice.arrive": {
+    roles: ["head_nurse", "nurse", "admin"],
+    run: (user, p) => J.arrive(user, p),
+  },
+  // 宝宝返中心：登记外院回执/建议，冲突须医生复核
+  "jaundice.return": {
+    roles: ["head_nurse", "nurse", "admin"],
+    run: (user, p) => J.returnCenter(user, p),
+  },
+  // 医生复核外院回执 → 重建观察计划/取消过期提醒/同步护理师排班 → 恢复常规护理
+  "jaundice.resume": {
+    roles: ["pediatrician", "admin"],
+    run: (user, p) => J.doctorResume(user, p),
+  },
+  // 医生关闭非转诊观察案例
+  "jaundice.close": {
+    roles: ["pediatrician", "admin"],
+    run: (user, p) => J.closeCase(user, p),
   },
 };
 

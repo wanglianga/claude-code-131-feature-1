@@ -3,6 +3,7 @@ import { q, today } from "@/lib/db";
 import { requireUser } from "@/lib/guard";
 import { AppShell, Section, DataTable, Badge } from "@/components/ui";
 import { DataForm } from "@/components/client";
+import { JaundiceCaseCard } from "@/components/jaundice";
 import { EX_STATUS, dt, badgeClass } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,14 @@ export default async function DoctorPage() {
   const inStays = q(
     `SELECT s.id, s.mother_name, s.baby_name, s.baby_weight, s.jaundice_level, s.jaundice_note, r.number
      FROM stays s JOIN rooms r ON r.id=s.room_id WHERE s.status='in_stay' ORDER BY r.number`);
+  const jCases = q(
+    `SELECT c.*, r.number FROM jaundice_cases c
+     JOIN stays s ON s.id=c.stay_id JOIN rooms r ON r.id=s.room_id
+     WHERE c.status NOT IN ('routine_resumed','closed')
+     ORDER BY CASE c.status WHEN 'review_conflict' THEN 0 WHEN 'returned_pending_review' THEN 1
+       WHEN 'pending_doctor' THEN 2 ELSE 3 END, c.id DESC`);
+  const pendingConfirm = jCases.filter((c) => ["pending_doctor", "doctor_confirmed"].includes(String(c.status)));
+  const pendingReview = jCases.filter((c) => ["returned_pending_review", "review_conflict"].includes(String(c.status)));
   const jaundiceAlerts = q(
     `SELECT e.*, r.number, s.baby_name FROM exceptions e
      JOIN stays s ON s.id=e.stay_id JOIN rooms r ON r.id=s.room_id
@@ -26,11 +35,24 @@ export default async function DoctorPage() {
     <AppShell title="儿科医生工作台">
       <div className="grid cols-3">
         <div className="stat"><div className="num">{inStays.length}</div><div className="label">在住宝宝</div></div>
-        <div className="stat"><div className="num">{jaundiceAlerts.length}</div><div className="label">黄疸预警工单</div></div>
-        <div className="stat"><div className="num">{myRounds.filter((r) => r.round_date === todayStr).length}</div><div className="label">今日巡诊</div></div>
+        <div className="stat"><div className="num">{pendingConfirm.length}</div><div className="label">待确认分级建议</div></div>
+        <div className="stat"><div className="num">{pendingReview.length}</div><div className="label">返中心待复核</div></div>
       </div>
 
-      <Section title="黄疸预警（护理上报）" tone={jaundiceAlerts.length ? "tone-red" : ""}>
+      <Section title="黄疸分级处置 · 待我确认 / 返中心复核" tone={jCases.length ? "tone-red" : ""}>
+        <div className="muted small" style={{ marginBottom: 8 }}>
+          家属端只展示您确认后的处理建议；建议转诊需家属确认后由护士长协调。返中心后若外院建议与原中心计划冲突，须您复核确认才能恢复常规护理。
+        </div>
+        {jCases.length === 0 && <div className="empty">暂无在办黄疸案例</div>}
+        {jCases.map((c) => (
+          <div key={Number(c.id)}>
+            <div className="muted small">{String(c.number)}房</div>
+            <JaundiceCaseCard c={c} role={user.role} detailed />
+          </div>
+        ))}
+      </Section>
+
+      <Section title="历史黄疸预警工单（异常中心）">
         <DataTable cols={["房间", "宝宝", "预警内容", "状态", "处理"]} empty="暂无黄疸预警"
           rows={jaundiceAlerts.map((e) => [
             <Link key="r" href={`/stays/${e.stay_id}`}>{String(e.number)}</Link>,

@@ -3,6 +3,7 @@ import { q, today } from "@/lib/db";
 import { requireUser } from "@/lib/guard";
 import { AppShell, Section, DataTable, Badge } from "@/components/ui";
 import { DataForm } from "@/components/client";
+import { NurseMeasureForm, JaundiceCaseCard } from "@/components/jaundice";
 import { PLAN_TYPES, TASK_STATUS, dt, badgeClass } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,12 @@ export default async function NursePage() {
   const inStays = q(
     `SELECT s.id, s.mother_name, s.baby_name, s.jaundice_level, r.number FROM stays s
      JOIN rooms r ON r.id=s.room_id WHERE s.status='in_stay' ORDER BY r.number`);
+  const jaundiceCases = q(
+    `SELECT c.*, r.number FROM jaundice_cases c
+     JOIN stays s ON s.id=c.stay_id JOIN rooms r ON r.id=s.room_id
+     WHERE c.status NOT IN ('routine_resumed','closed')
+     ORDER BY c.delayed DESC, c.id DESC`);
+  const retestTasks = myTasks.filter((t) => String(t.type) === "jaundice" && String(t.status) === "pending");
 
   return (
     <AppShell title={user.role === "matron" ? "月嫂工作台" : "护理工作台"}>
@@ -33,6 +40,27 @@ export default async function NursePage() {
         <div className="stat"><div className="num">{myTasks.filter((t) => t.status === "done" && String(t.done_at || "").startsWith(todayStr)).length}</div><div className="label">今日已完成</div></div>
         <div className="stat"><div className="num">{inStays.length}</div><div className="label">在住房间</div></div>
       </div>
+
+      <Section title="宝宝黄疸测量与分级处置" tone={jaundiceCases.length ? "tone-red" : ""}>
+        <div className="muted small" style={{ marginBottom: 8 }}>
+          提交后系统按阈值自动分级：<b>12.0–14.9 加强复测</b>、<b>15.0–17.9 医生当班评估</b>、<b>≥18.0 紧急转诊</b>。
+          处理建议须经儿科医生确认后方可告知家属；<b style={{ color: "#c0392b" }}>医生确认前，不得自行向家属承诺转诊或调整治疗说明</b>。
+          {retestTasks.length > 0 && <span className="badge amber" style={{ marginLeft: 8 }}>{retestTasks.length} 项医生下达的黄疸复测待执行</span>}
+        </div>
+        <details>
+          <summary className="btn default small">登记一次黄疸测量（含趋势/喂养/排泄）</summary>
+          <div className="mt8"><NurseMeasureForm stays={inStays} /></div>
+        </details>
+        <div className="mt16">
+          {jaundiceCases.length === 0 && <div className="empty">暂无在办黄疸分级处置案例</div>}
+          {jaundiceCases.map((c) => (
+            <div key={Number(c.id)}>
+              <div className="muted small">{String(c.number)}房</div>
+              <JaundiceCaseCard c={c} role={user.role} detailed={false} />
+            </div>
+          ))}
+        </div>
+      </Section>
 
       <Section title={isHeadNurse ? "全部护理任务" : "我的护理任务"}>
         <DataTable cols={["房间", "时间", "任务", "状态", "执行"]} empty="暂无任务"

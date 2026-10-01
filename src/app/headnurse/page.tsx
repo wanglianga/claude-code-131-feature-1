@@ -3,12 +3,13 @@ import { q } from "@/lib/db";
 import { requireUser } from "@/lib/guard";
 import { AppShell, Section, DataTable, Badge } from "@/components/ui";
 import { DataForm } from "@/components/client";
+import { HeadNurseReferralPanel } from "@/components/jaundice";
 import { EX_TYPES, EX_STATUS, SEVERITY, dt, badgeClass, severityClass } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
 export default async function HeadNursePage() {
-  await requireUser(["head_nurse", "admin"]);
+  const user = await requireUser(["head_nurse", "admin"]);
   const exceptions = q(
     `SELECT e.*, r.number, s.mother_name FROM exceptions e
      JOIN stays s ON s.id=e.stay_id JOIN rooms r ON r.id=s.room_id
@@ -33,6 +34,9 @@ export default async function HeadNursePage() {
     `SELECT f.*, r.number, s.mother_name FROM follow_ups f
      JOIN stays s ON s.id=f.stay_id JOIN rooms r ON r.id=s.room_id
      WHERE f.status='pending' ORDER BY f.scheduled_at LIMIT 10`);
+  const jDelayed = q(
+    `SELECT COUNT(*) AS c FROM jaundice_cases
+     WHERE delayed=1 AND status NOT IN ('routine_resumed','closed')`);
 
   return (
     <AppShell title="护士长工作台">
@@ -40,8 +44,10 @@ export default async function HeadNursePage() {
         <div className="stat"><div className="num">{exceptions.length}</div><div className="label">待处理异常工单</div></div>
         <div className="stat"><div className="num">{disputes.filter((d) => d.status === "open").length}</div><div className="label">同步我的争议/质疑</div></div>
         <div className="stat"><div className="num">{feedbacks.filter((f) => f.status === "new").length}</div><div className="label">待回复家属反馈</div></div>
-        <div className="stat"><div className="num">{leaves.length}</div><div className="label">月嫂请假待协调</div></div>
+        <div className="stat"><div className="num">{leaves.length + Number(jDelayed[0]?.c || 0)}</div><div className="label">请假/转诊延迟待协调</div></div>
       </div>
+
+      <HeadNurseReferralPanel role={user.role} />
 
       <Section title="异常工单中心（全中心）" tone={exceptions.length ? "tone-red" : ""}>
         <DataTable cols={["房间", "类型", "标题", "严重度", "状态", "责任角色", "处理"]} empty="暂无待处理异常"

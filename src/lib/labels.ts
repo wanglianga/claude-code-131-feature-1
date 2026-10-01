@@ -33,6 +33,7 @@ export const PLAN_TYPES: Record<string, string> = {
   meal: "月子餐",
   baby_bath: "宝宝洗澡抚触",
   night_care: "夜间照护",
+  jaundice: "黄疸复测",
 };
 
 export const EX_TYPES: Record<string, string> = {
@@ -77,6 +78,7 @@ export const TASK_STATUS: Record<string, string> = {
   done: "已完成",
   delayed: "已延期",
   missed: "已遗漏",
+  cancelled: "已取消",
 };
 
 export const VISIT_STATUS: Record<string, string> = {

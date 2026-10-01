@@ -214,6 +214,85 @@ CREATE TABLE IF NOT EXISTS exception_events(
   note TEXT DEFAULT '',
   created_at TEXT DEFAULT (datetime('now','localtime'))
 );
+-- 黄疸测量记录：测量时间/方式/趋势/喂养/排泄/既往观察计划与医生建议/系统分级
+CREATE TABLE IF NOT EXISTS jaundice_records(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  stay_id INTEGER NOT NULL REFERENCES stays(id),
+  case_id INTEGER REFERENCES jaundice_cases(id),
+  measured_at TEXT NOT NULL,
+  method TEXT DEFAULT '经皮胆红素（TCB）',
+  level REAL NOT NULL,
+  trend TEXT DEFAULT 'flat',
+  feeding TEXT DEFAULT '',
+  stool TEXT DEFAULT '',
+  prev_plan TEXT DEFAULT '',
+  prev_advice TEXT DEFAULT '',
+  grade TEXT NOT NULL,
+  measured_by INTEGER,
+  measured_by_name TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+-- 黄疸分级处置案例：医生确认 → 家属确认 → 转诊协调 → 延迟升级 → 返中心复核 → 计划重建
+CREATE TABLE IF NOT EXISTS jaundice_cases(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  stay_id INTEGER NOT NULL REFERENCES stays(id),
+  exception_id INTEGER REFERENCES exceptions(id),
+  latest_level REAL DEFAULT 0,
+  grade TEXT DEFAULT 'enhanced',
+  status TEXT DEFAULT 'pending_doctor',
+  doctor_id INTEGER,
+  doctor_name TEXT DEFAULT '',
+  doctor_decision TEXT DEFAULT '',
+  doctor_advice TEXT DEFAULT '',
+  doctor_confirmed_at TEXT,
+  family_confirmed INTEGER DEFAULT 0,
+  family_confirmed_by INTEGER,
+  family_confirmed_at TEXT,
+  family_response_note TEXT DEFAULT '',
+  vehicle_status TEXT DEFAULT 'none',
+  vehicle_info TEXT DEFAULT '',
+  escort_id INTEGER,
+  escort_name TEXT DEFAULT '',
+  target_hospital TEXT DEFAULT '',
+  handoff TEXT DEFAULT '',
+  coordinated_by INTEGER,
+  coordinated_by_name TEXT DEFAULT '',
+  coordinated_at TEXT,
+  delayed INTEGER DEFAULT 0,
+  delay_reason TEXT DEFAULT '',
+  escalated_headnurse INTEGER DEFAULT 0,
+  escalated_at TEXT,
+  risk_note TEXT DEFAULT '',
+  departed_at TEXT,
+  arrived_at TEXT,
+  returned_at TEXT,
+  external_receipt TEXT DEFAULT '',
+  external_advice TEXT DEFAULT '',
+  new_doctor_advice TEXT DEFAULT '',
+  plan_conflict INTEGER DEFAULT 0,
+  conflict_detail TEXT DEFAULT '',
+  reviewed_by INTEGER,
+  reviewed_by_name TEXT DEFAULT '',
+  reviewed_at TEXT,
+  routine_resumed INTEGER DEFAULT 0,
+  plan_rebuilt INTEGER DEFAULT 0,
+  rebuilt_at TEXT,
+  rebuilt_detail TEXT DEFAULT '',
+  cancelled_reminders INTEGER DEFAULT 0,
+  schedule_synced INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+  updated_at TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS jaundice_events(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  case_id INTEGER NOT NULL REFERENCES jaundice_cases(id),
+  stay_id INTEGER,
+  user_id INTEGER,
+  user_name TEXT DEFAULT '',
+  action TEXT NOT NULL,
+  note TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now','localtime'))
+);
 CREATE TABLE IF NOT EXISTS feedbacks(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   stay_id INTEGER NOT NULL REFERENCES stays(id),
@@ -558,6 +637,28 @@ function seed(db: DatabaseSync) {
   const ex1 = addException(stayA, "jaundice", "宝宝黄疸值升至12.9mg/dL", "晨间测定经皮胆红素12.9mg/dL，较前日11.2上升，需儿科评估。", "high", "processing", nurse1, "王芳（护理师）", "pediatrician", 1, "", "2026-09-25 09:35:00");
   addEvent(ex1, nurse1, "王芳（护理师）", "created", "晨测黄疸升高，上报儿科医生并同步护士长。", "2026-09-25 09:35:00");
   addEvent(ex1, doctor, "陈立（儿科医生）", "accepted", "已查看宝宝，建议加强喂养、日光照射，下午复测，必要时蓝光。", "2026-09-25 10:10:00");
+
+  // ---- 黄疸分级处置案例（801：加强复测，已医生确认，待下午复测）----
+  const jcaseA = Number(ins(
+    `INSERT INTO jaundice_cases(stay_id,exception_id,latest_level,grade,status,doctor_id,doctor_name,
+       doctor_decision,doctor_advice,doctor_confirmed_at,created_at,updated_at)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+    stayA, ex1, 12.9, "enhanced", "doctor_confirmed", doctor, "陈立（儿科医生）",
+    "enhanced_retest", "加强喂养、日光照射，当日16:00复测经皮胆红素；若继续上升或超过15mg/dL立即复诊，必要时光照治疗。",
+    "2026-09-25 10:15:00", "2026-09-25 09:36:00", "2026-09-25 10:15:00"
+  ).lastInsertRowid);
+  ins(`INSERT INTO jaundice_records(stay_id,case_id,measured_at,method,level,trend,feeding,stool,prev_plan,prev_advice,grade,measured_by,measured_by_name,created_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    stayA, jcaseA, "2026-09-25 09:30", "经皮胆红素（TCB）", 12.9, "up",
+    "混合喂养，每2-3小时一次，吃奶有力", "大便已由胎便转黄，每日3-4次，小便6次以上",
+    "黄疸监测每日2次（09:00/20:00）", "继续监测黄疸每日2次，必要时蓝光治疗，加强喂养",
+    "enhanced", nurse1, "王芳（护理师）", "2026-09-25 09:36:00");
+  const addJEvent = (caseId: number, userId: number | null, userName: string, action: string, note: string, at: string) =>
+    ins(`INSERT INTO jaundice_events(case_id,stay_id,user_id,user_name,action,note,created_at)
+      VALUES(?,?,?,?,?,?,?)`, caseId, stayA, userId, userName, action, note, at);
+  addJEvent(jcaseA, nurse1, "王芳（护理师）", "measured", "晨测TCB 12.9mg/dL，较昨日11.2上升；吃奶可、二便正常。系统分级：加强复测。", "2026-09-25 09:36:00");
+  addJEvent(jcaseA, nurse1, "王芳（护理师）", "created", "建立黄疸分级处置案例，待儿科医生确认处理建议（确认前不对家属承诺转诊或治疗调整）。", "2026-09-25 09:36:00");
+  addJEvent(jcaseA, doctor, "陈立（儿科医生）", "doctor_confirmed", "确认分级处置：加强复测。当日16:00复测，超过15mg/dL立即复诊。", "2026-09-25 10:15:00");
 
   const ex2 = addException(stayA, "meal_taboo", "晚餐含虾仁，与忌口（海鲜）冲突", "家属发现晚餐虾仁滑蛋含海鲜，产妇海鲜过敏，立即停止食用并更换。", "high", "open", family1, "张强（家属）", "nutritionist", 1, "", "2026-09-25 18:05:00");
   addEvent(ex2, family1, "张强（家属）", "created", "晚餐发现虾仁，产妇海鲜过敏，请中心核实处理。", "2026-09-25 18:05:00");

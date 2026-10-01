@@ -3,6 +3,7 @@ import { q, q1 } from "@/lib/db";
 import { requireUser } from "@/lib/guard";
 import { AppShell, Section, DataTable, KV, Badge } from "@/components/ui";
 import { DataForm } from "@/components/client";
+import { FamilyJaundicePanel } from "@/components/jaundice";
 import { PLAN_TYPES, VISIT_STATUS, FEE_TYPES, money, dt, badgeClass } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,8 @@ export default async function FamilyPage() {
   const followUps = q("SELECT * FROM follow_ups WHERE stay_id=? ORDER BY scheduled_at", stayId);
   const messages = q("SELECT * FROM messages WHERE stay_id=? AND audience IN ('all','family') ORDER BY created_at DESC LIMIT 10", stayId);
   const rounds = showCare ? q("SELECT * FROM doctor_rounds WHERE stay_id=? ORDER BY round_date DESC LIMIT 5", stayId) : [];
+  // 家属端仅在医生确认后才展示具体黄疸数值与处理建议
+  const jConfirmed = q1("SELECT id FROM jaundice_cases WHERE stay_id=? AND doctor_confirmed_at IS NOT NULL ORDER BY id DESC LIMIT 1", stayId);
 
   const feeTotal = fees.filter((f) => f.direction === "charge").reduce((s, f) => s + Number(f.amount), 0);
   const refundTotal = fees.filter((f) => f.direction === "refund").reduce((s, f) => s + Number(f.amount), 0);
@@ -52,11 +55,15 @@ export default async function FamilyPage() {
           ["房间 / 套餐", `${stay.room_number}（${stay.room_type}）/ ${stay.package_name}`],
           ["入住 / 预计出所", `${stay.check_in_date} ~ ${stay.expected_checkout}${stay.actual_checkout ? `（实际 ${stay.actual_checkout}）` : ""}`],
           ["宝宝", `${stay.baby_name} · ${stay.baby_weight}kg`],
-          ["黄疸观察", `${stay.jaundice_level}mg/dL ${stay.jaundice_note || ""}`],
+          ["黄疸观察", jConfirmed
+            ? `${stay.jaundice_level}mg/dL ${stay.jaundice_note || ""}（以儿科医生确认建议为准）`
+            : <span key="jw" className="muted small">护理师监测中，处理建议经儿科医生确认后同步</span>],
           ["哺乳方式", String(stay.feeding_method)],
           ["我的身份", `${link.link_name}（${link.relation}）`],
         ]} />
       </Section>
+
+      <FamilyJaundicePanel stayId={stayId} />
 
       {showCare && (
         <div className="grid cols-2">

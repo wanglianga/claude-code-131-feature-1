@@ -8,6 +8,7 @@ import {
   PLAN_TYPES, EX_TYPES, EX_STATUS, SEVERITY, FEE_TYPES, TASK_STATUS, VISIT_STATUS,
   money, dt, badgeClass, severityClass,
 } from "@/lib/labels";
+import { JaundiceCaseCard } from "@/components/jaundice";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
   const feedbacks = q("SELECT * FROM feedbacks WHERE stay_id=? ORDER BY created_at DESC", stayId);
   const followUps = q("SELECT * FROM follow_ups WHERE stay_id=? ORDER BY scheduled_at", stayId);
   const referrals = q("SELECT * FROM referrals WHERE stay_id=? ORDER BY id DESC", stayId);
+  const jaundiceCases = q("SELECT * FROM jaundice_cases WHERE stay_id=? ORDER BY id DESC", stayId);
   const audits = q("SELECT * FROM audit_logs WHERE stay_id=? ORDER BY created_at DESC, id DESC LIMIT 40", stayId);
   const staffUsers = q("SELECT id,name,role FROM users WHERE active=1 AND role IN ('nurse','matron','therapist','nutritionist','pediatrician','head_nurse') ORDER BY role");
   const packages = q("SELECT * FROM packages ORDER BY price");
@@ -119,6 +121,16 @@ export default async function StayPage({ params }: { params: Promise<{ id: strin
             submitLabel="上报异常" />
         </details>
       </Section>
+
+      {/* 黄疸分级处置与转诊闭环：全程时间线 / 交接材料 / 未完成事项 */}
+      {jaundiceCases.length > 0 && (
+        <Section title="宝宝黄疸分级处置与转诊闭环（测量→医生确认→转诊→返中心复核）"
+          tone={jaundiceCases.some((c) => ["pending_doctor", "delayed_escalated", "review_conflict", "referral_pending_family"].includes(String(c.status))) ? "tone-red" : ""}>
+          {jaundiceCases.map((c) => (
+            <JaundiceCaseCard key={Number(c.id)} c={c} role={user.role} detailed />
+          ))}
+        </Section>
+      )}
 
       <div className="grid cols-2">
         {/* 护理计划与任务 */}
